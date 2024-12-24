@@ -1,6 +1,6 @@
 #include <algorithm>
 #include <map>
-#include <open3d/Open3D.h>
+
 #include <Eigen/Dense>
 
 

@@ -11,7 +11,7 @@ find_package(moveit_visual_tools REQUIRED)
 find_package(geometric_shapes REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(Open3D REQUIRED)
+
 
 include_directories(
                     include
@@ -29,8 +29,8 @@ target_include_directories(chomp_planning PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(chomp_planning Open3D::Open3D)
 
+    
 ament_target_dependencies(chomp_planning
                             rclcpp
                             moveit_core
