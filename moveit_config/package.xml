@@ -10,6 +10,7 @@
 <depend>ur_description</depend>
 <depend>my_chomp_motion_planner</depend>
 <depend>moveit_core</depend>
+<depend>moveit_ros_planning_interface</depend>
 <depend>rclcpp</depend>
 <export>
 <build_type>ament_cmake</build_type>

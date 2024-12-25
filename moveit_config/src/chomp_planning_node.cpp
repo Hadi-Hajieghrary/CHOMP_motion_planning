@@ -14,6 +14,7 @@
 #include <geometric_shapes/shape_operations.h>
 #include <moveit/collision_distance_field/collision_detector_allocator_hybrid.h>
 
+#include <moveit/move_group_interface/move_group_interface.h>
 
 // Messages
 #include <moveit_msgs/msg/display_trajectory.hpp>
@@ -298,6 +299,27 @@ int main(int argc, char** argv) {
 
         }
 
+    }
+
+    // --------------------------------------------------------------------------
+    // 8. Execute the planned Trajectory
+    // The Planning Group name is given in the related SRDF file
+    // --------------------------------------------------------------------------
+    moveit::planning_interface::MoveGroupInterface move_group_interface(node, "ur5e_manipulator");
+    // Convert the RobotTrajectory into a ROS message
+    // Create a plan object
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    planned_trajectories.front()->getRobotTrajectoryMsg(plan.trajectory_);
+    // Execute the plan using MoveGroupInterface
+    // This will send the trajectory to the controller manager (or execute_trajectory action server).
+    bool success = (move_group_interface.execute(plan) == moveit::core::MoveItErrorCode::SUCCESS);
+    if (!success)
+    {
+        RCLCPP_ERROR(node->get_logger(), "\033[1;31mFailed to execute trajectory\033[0m");
+    }
+    else
+    {
+        RCLCPP_INFO(node->get_logger(), "\033[1;32mTrajectory execution succeeded\033[0m");
     }
 
     rclcpp::spin(node);

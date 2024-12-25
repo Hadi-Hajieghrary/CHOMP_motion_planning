@@ -7,6 +7,7 @@ find_package(rclcpp REQUIRED)
 find_package(my_chomp_motion_planner REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_ros_planning REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 find_package(geometric_shapes REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -39,6 +40,7 @@ ament_target_dependencies(chomp_planning
       my_chomp_motion_planner
       moveit_core
       moveit_ros_planning
+      moveit_ros_planning_interface
       geometric_shapes
       tf2_eigen
     )

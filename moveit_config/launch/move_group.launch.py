@@ -99,7 +99,7 @@ def generate_launch_description():
     )
 
     # Start the actual move_group node/action server
-    run_move_group_node = Node(
+    move_group_node = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
@@ -177,7 +177,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             robot_state_publisher,
-            run_move_group_node,
+            move_group_node,
             ros2_control_node,
             rviz_node,
         ]
