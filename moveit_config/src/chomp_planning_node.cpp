@@ -13,7 +13,7 @@
 #include <moveit/kinematic_constraints/utils.h>
 #include <geometric_shapes/shape_operations.h>
 #include <moveit/collision_distance_field/collision_detector_allocator_hybrid.h>
-
+#include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
 #include <moveit/move_group_interface/move_group_interface.h>
 
 // Messages
@@ -251,65 +251,68 @@ int main(int argc, char** argv) {
 
     RCLCPP_INFO(node->get_logger(), "\033[1;32mCHOMP planning succeeded!\033[0m");
 
-    // --------------------------------------------------------------------------
-    // 7. Extract the planned Trajectory
-    // --------------------------------------------------------------------------
-    const std::vector<robot_trajectory::RobotTrajectoryPtr>& planned_trajectories = res.trajectory_;
 
-    // Print Out the Trajectory
+    // --------------------------------------------------------------------------
+    // 7. Add timestamps to each point of Trajectory for execution
+    // --------------------------------------------------------------------------
+
+    robot_trajectory::RobotTrajectory& planned_trajectory = *(res.trajectory_.front());
+    trajectory_processing::TimeOptimalTrajectoryGeneration time_param;
+    time_param.computeTimeStamps(planned_trajectory, /* max_velocity_scaling_factor =*/ 1.0,
+                                                     /* max_acceleration_scaling_factor =*/ 1.0);
+
+    // --------------------------------------------------------------------------
+    // 8. Extract the planned Trajectory
+    // --------------------------------------------------------------------------
+    // // Print Out the Trajectory
     {
         std::ostringstream oss;
         RCLCPP_INFO(node->get_logger(), "\033[1;33mPrinting the Trajectory!!\033[0m");
-        for(size_t i{0}; i != planned_trajectories.size(); ++i){
-            RCLCPP_INFO(node->get_logger(), "\033[1;33mPrinting the Trajectory No. %ld!!\033[0m", i);
-            size_t waypoint_count = planned_trajectories[i]->getWayPointCount();
-            // Print Out the Joint Values along the Trajectory
-            RCLCPP_INFO(node->get_logger(), "Trajectory Group: %s", planned_trajectories[i]->getGroupName().c_str());
-            RCLCPP_INFO(node->get_logger(), "Robot Model:     %s", planned_trajectories[i]->getRobotModel()->getName().c_str());
-            RCLCPP_INFO(node->get_logger(), "Waypoint count:  %ld", waypoint_count);
+        size_t waypoint_count = planned_trajectory.getWayPointCount();
+        // Print Out the Joint Values along the Trajectory
+        RCLCPP_INFO(node->get_logger(), "Trajectory Group: %s", planned_trajectory.getGroupName().c_str());
+        RCLCPP_INFO(node->get_logger(), "Robot Model:     %s", planned_trajectory.getRobotModel()->getName().c_str());
+        RCLCPP_INFO(node->get_logger(), "Waypoint count:  %ld", waypoint_count);
 
-            // Loop through all waypoints
-            for (std::size_t p = 0; p != waypoint_count; ++p)
+        // Loop through all waypoints
+        for (std::size_t p = 0; p != waypoint_count; ++p)
+        {
+            // Time from start for the i-th waypoint
+            double time_from_start = planned_trajectory.getWayPointDurationFromStart(p);
+            // Retrieve the i-th RobotState
+            const moveit::core::RobotState& waypoint_state = planned_trajectory.getWayPoint(p);
+            // Retrieve the names of all joints in the RobotState
+            const std::vector<std::string>& joint_names = waypoint_state.getVariableNames();
+            // Prepare a stream for printing joint positions
+            std::ostringstream oss;
+            oss << "Waypoint " << p 
+                << " (t=" << time_from_start << "s): [";
+
+            // Append each joint name and its position
+            for (std::size_t j = 0; j < joint_names.size(); ++j)
             {
-                // Time from start for the i-th waypoint
-                double time_from_start = planned_trajectories[i]->getWayPointDurationFromStart(p);
-                // Retrieve the i-th RobotState
-                const moveit::core::RobotState& waypoint_state = planned_trajectories[i]->getWayPoint(p);
-                // Retrieve the names of all joints in the RobotState
-                const std::vector<std::string>& joint_names = waypoint_state.getVariableNames();
-                // Prepare a stream for printing joint positions
-                std::ostringstream oss;
-                oss << "Waypoint " << p 
-                    << " (t=" << time_from_start << "s): [";
-
-                // Append each joint name and its position
-                for (std::size_t j = 0; j < joint_names.size(); ++j)
-                {
-                // Get the position of this joint
-                double position = waypoint_state.getVariablePosition(joint_names[j]);
-                oss << joint_names[j] << "=" << position;
-                if (j + 1 < joint_names.size())
-                    oss << ", ";
-                }
-                oss << "]";
-
-                // Log the line
-                RCLCPP_INFO(node->get_logger(), "\033[0m%s\033[0m", oss.str().c_str());
+            // Get the position of this joint
+            double position = waypoint_state.getVariablePosition(joint_names[j]);
+            oss << joint_names[j] << "=" << position;
+            if (j + 1 < joint_names.size())
+                oss << ", ";
             }
+            oss << "]";
 
+            // Log the line
+            RCLCPP_INFO(node->get_logger(), "\033[0m%s\033[0m", oss.str().c_str());
         }
-
     }
 
     // --------------------------------------------------------------------------
-    // 8. Execute the planned Trajectory
+    // 9. Execute the planned Trajectory
     // The Planning Group name is given in the related SRDF file
     // --------------------------------------------------------------------------
     moveit::planning_interface::MoveGroupInterface move_group_interface(node, "ur5e_manipulator");
     // Convert the RobotTrajectory into a ROS message
     // Create a plan object
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    planned_trajectories.front()->getRobotTrajectoryMsg(plan.trajectory_);
+    planned_trajectory.getRobotTrajectoryMsg(plan.trajectory_);
     // Execute the plan using MoveGroupInterface
     // This will send the trajectory to the controller manager (or execute_trajectory action server).
     bool success = (move_group_interface.execute(plan) == moveit::core::MoveItErrorCode::SUCCESS);

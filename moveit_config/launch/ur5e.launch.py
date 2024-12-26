@@ -10,14 +10,11 @@ def generate_launch_description():
     # Load robot description (URDF)
     name = LaunchConfiguration("name", default="ur5e_manipulator")
     ur_type = LaunchConfiguration("ur_type", default="ur5e")
-    use_fake_hardware = LaunchConfiguration("use_fake_hardware", default="true")
-    fake_sensor_commands = LaunchConfiguration("fake_sensor_commands", default="true")
+    mock_sensor_commands = LaunchConfiguration("mock_sensor_commands", default="true")
     safety_limits = LaunchConfiguration("safety_limits", default="true")
-    safety_pos_margin = LaunchConfiguration("safety_pos_margin", default="0.15")
-    safety_k_position = LaunchConfiguration("safety_k_position", default="20",)
     # General arguments
     description_package = LaunchConfiguration("description_package", default="ur_description")
-    description_file = LaunchConfiguration("description_file", default="ur.urdf.xacro")
+    description_file = LaunchConfiguration("description_file", default="ur_mocked.urdf.xacro")
     tf_prefix = LaunchConfiguration("tf_prefix", default="")
 
     robot_description_content = Command(
@@ -26,20 +23,11 @@ def generate_launch_description():
             " ",
             PathJoinSubstitution([FindPackageShare(description_package), "urdf", description_file]),
             " ",
-            "use_fake_hardware:=",
-            use_fake_hardware,
-            " ",
-            "fake_sensor_commands:=",
-            fake_sensor_commands,
+            "mock_sensor_commands:=",
+            mock_sensor_commands,
             " ",
             "safety_limits:=",
             safety_limits,
-            " ",
-            "safety_pos_margin:=",
-            safety_pos_margin,
-            " ",
-            "safety_k_position:=",
-            safety_k_position,
             " ",
             "name:=",
             name,
@@ -87,8 +75,8 @@ def generate_launch_description():
     )
 
     nodes_to_start = [
-        joint_state_publisher_node,
-        # joint_state_publisher_gui_node,
+        #joint_state_publisher_node,
+        joint_state_publisher_gui_node,
         robot_state_publisher_node,
         rviz_node,
     ]

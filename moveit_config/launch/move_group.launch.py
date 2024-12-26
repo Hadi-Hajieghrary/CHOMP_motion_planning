@@ -18,16 +18,14 @@ def generate_launch_description():
     moveit_config = {}
 
     # Load robot description (URDF)
+    # Load robot description (URDF)
     name = LaunchConfiguration("name", default="ur5e_manipulator")
     ur_type = LaunchConfiguration("ur_type", default="ur5e")
-    use_fake_hardware = LaunchConfiguration("use_fake_hardware", default="true")
-    fake_sensor_commands = LaunchConfiguration("fake_sensor_commands", default="true")
+    mock_sensor_commands = LaunchConfiguration("mock_sensor_commands", default="true")
     safety_limits = LaunchConfiguration("safety_limits", default="true")
-    safety_pos_margin = LaunchConfiguration("safety_pos_margin", default="0.15")
-    safety_k_position = LaunchConfiguration("safety_k_position", default="20",)
     # General arguments
     description_package = LaunchConfiguration("description_package", default="ur_description")
-    description_file = LaunchConfiguration("description_file", default="ur.urdf.xacro")
+    description_file = LaunchConfiguration("description_file", default="ur_mocked.urdf.xacro")
     tf_prefix = LaunchConfiguration("tf_prefix", default="")
 
     robot_description_content = Command(
@@ -36,20 +34,11 @@ def generate_launch_description():
             " ",
             PathJoinSubstitution([FindPackageShare(description_package), "urdf", description_file]),
             " ",
-            "use_fake_hardware:=",
-            use_fake_hardware,
-            " ",
-            "fake_sensor_commands:=",
-            fake_sensor_commands,
+            "mock_sensor_commands:=",
+            mock_sensor_commands,
             " ",
             "safety_limits:=",
             safety_limits,
-            " ",
-            "safety_pos_margin:=",
-            safety_pos_margin,
-            " ",
-            "safety_k_position:=",
-            safety_k_position,
             " ",
             "name:=",
             name,
@@ -61,6 +50,7 @@ def generate_launch_description():
             tf_prefix,
         ]
     )
+
     moveit_config["robot_description"] = ParameterValue(value=robot_description_content, value_type=str)
 
     # Load semantic robot description (SRDF)
@@ -153,10 +143,10 @@ def generate_launch_description():
     ros2_control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[
-            {"robot_description": moveit_config["robot_description"]},
-            ros2_controllers_path
-            ],
+        parameters=[ros2_controllers_path],
+        remappings=[
+            ("~/robot_description", "/robot_description"),
+        ],
         output="both",
     )
 
