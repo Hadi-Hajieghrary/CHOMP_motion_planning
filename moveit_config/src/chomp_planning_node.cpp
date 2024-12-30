@@ -93,25 +93,47 @@ int main(int argc, char** argv) {
     // 3. Add Collision Objects (Placeholder)
     // --------------------------------------------------------------------------
 
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.header.frame_id = robot_model->getModelFrame();
-    collision_object.id = "obstacle_box";
+{
+    // Create first collision object
+    moveit_msgs::msg::CollisionObject collision_object_1;
+    collision_object_1.header.frame_id = robot_model->getModelFrame();
+    collision_object_1.id = "obstacle_box_1";
+    shape_msgs::msg::SolidPrimitive primitive_1;
+    primitive_1.type = primitive_1.BOX;
+    primitive_1.dimensions = {0.3, 0.3, 0.2};
 
-    shape_msgs::msg::SolidPrimitive primitive;
-    primitive.type = primitive.BOX;
-    primitive.dimensions = {0.2, 0.2, 0.2};
+    geometry_msgs::msg::Pose box_pose_1;
+    box_pose_1.orientation.w = 1.0;
+    box_pose_1.position.x = 0.5;
+    box_pose_1.position.y = 0.5;
+    box_pose_1.position.z = 0.5;
 
-    geometry_msgs::msg::Pose box_pose;
-    box_pose.orientation.w = 1.0;
-    box_pose.position.x = 0.5;
-    box_pose.position.y = 0.5;
-    box_pose.position.z = 0.5;
+    collision_object_1.primitives.push_back(primitive_1);
+    collision_object_1.primitive_poses.push_back(box_pose_1);
+    collision_object_1.operation = collision_object_1.ADD;
+    planning_scene->processCollisionObjectMsg(collision_object_1);
+}
 
-    collision_object.primitives.push_back(primitive);
-    collision_object.primitive_poses.push_back(box_pose);
-    collision_object.operation = collision_object.ADD;
+{
+    // Create second collision object
+    moveit_msgs::msg::CollisionObject collision_object_2;
+    collision_object_2.header.frame_id = robot_model->getModelFrame();
+    collision_object_2.id = "obstacle_box_2"; 
+    shape_msgs::msg::SolidPrimitive primitive_2;
+    primitive_2.type = primitive_2.BOX;
+    primitive_2.dimensions = {0.3, 0.3, 0.2};
 
-    planning_scene->processCollisionObjectMsg(collision_object);
+    geometry_msgs::msg::Pose box_pose_2;
+    box_pose_2.orientation.w = 1.0;
+    box_pose_2.position.x = -0.5;
+    box_pose_2.position.y = -0.5;
+    box_pose_2.position.z = 0.5;
+
+    collision_object_2.primitives.push_back(primitive_2);
+    collision_object_2.primitive_poses.push_back(box_pose_2);
+    collision_object_2.operation = collision_object_2.ADD;
+    planning_scene->processCollisionObjectMsg(collision_object_2);
+}
 
     auto collision_world = planning_scene->getCollisionEnv()->getWorld();
     if (collision_world->getObjectIds().size() == 0) {
@@ -234,7 +256,7 @@ int main(int argc, char** argv) {
     params.joint_update_limit_ = 0.1;
     params.min_clearance_ = 0.2;
     params.collision_threshold_ = 0.07;
-    params.filter_mode_ = false;
+    params.filter_mode_ = true;
     params.trajectory_initialization_method_ = "quintic-spline";
     params.enable_failure_recovery_ = true;
     params.max_recovery_attempts_ = 5;
@@ -308,6 +330,13 @@ int main(int argc, char** argv) {
     // 9. Execute the planned Trajectory
     // The Planning Group name is given in the related SRDF file
     // --------------------------------------------------------------------------
+
+    // Publish Planning Scene to be visualized on Rviz
+    rclcpp::Publisher<moveit_msgs::msg::PlanningScene>::SharedPtr planning_scene_publisher = node->create_publisher<moveit_msgs::msg::PlanningScene>("monitored_planning_scene", 10);
+    moveit_msgs::msg::PlanningScene planning_scene_msg;
+    planning_scene->getPlanningSceneMsg(planning_scene_msg);
+    planning_scene_publisher->publish(planning_scene_msg);
+
     moveit::planning_interface::MoveGroupInterface move_group_interface(node, "ur5e_manipulator");
     // Convert the RobotTrajectory into a ROS message
     // Create a plan object

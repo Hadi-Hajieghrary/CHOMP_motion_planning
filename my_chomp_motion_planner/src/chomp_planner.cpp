@@ -157,8 +157,9 @@ bool ChompPlanner::solve(const planning_scene::PlanningSceneConstPtr& planning_s
             res.error_code_.val = moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED;
             return false;
         }
-
-        optimization_result = optimizer->optimize();
+        
+        std::vector<std::pair<ChompTrajectory, double>> intermediate_results;
+        optimization_result = optimizer->optimize(intermediate_results);
         if (optimization_result || !params.enable_failure_recovery_)
         {
             break;

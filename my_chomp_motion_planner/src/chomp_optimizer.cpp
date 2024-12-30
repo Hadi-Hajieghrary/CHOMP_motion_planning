@@ -402,54 +402,67 @@ void ChompOptimizer::registerParents(const moveit::core::JointModel* model)
   }
 }
 
-bool ChompOptimizer::optimize()
-{
+
+std::pair<double, double> ChompOptimizer::stepOptimization(){
+
+  // Update the collision info by forward kinematics
+  performForwardKinematics();
+
+  // Evaluate collision cost and smoothness cost
+  double c_cost = getCollisionCost();
+  double s_cost = getSmoothnessCost();
+  double cost   = c_cost + s_cost;
+  RCLCPP_INFO(LOGGER, "Collision cost %f, smoothness cost: %f", c_cost, s_cost);
+
+  // Track best solution so far
+  if (iteration_ == 0)
+  {
+    best_group_trajectory_      = group_trajectory_.getTrajectory();
+    best_group_trajectory_cost_ = cost;
+    last_improvement_iteration_ = iteration_;
+  }
+  else if (cost < best_group_trajectory_cost_)
+  {
+    best_group_trajectory_      = group_trajectory_.getTrajectory();
+    best_group_trajectory_cost_ = cost;
+    last_improvement_iteration_ = iteration_;
+  }
+
+  // Compute incremental updates
+  calculateSmoothnessIncrements();
+  calculateCollisionIncrements();
+  calculateTotalIncrements();
+
+  // If not using HMC, just do a gradient update
+  addIncrementsToTrajectory();
+
+  // Respect joint limits
+  handleJointLimits();
+
+  // Copy local trajectory to the full_trajectory_
+  updateFullTrajectory();
+
+  return {c_cost, s_cost};
+}
+
+
+bool ChompOptimizer::optimize(std::vector<std::pair<ChompTrajectory, double>>& intermediate_results) { 
+  
+  intermediate_results.clear(); 
   bool optimization_result = false;  // Return value
   auto start_time = std::chrono::system_clock::now();
 
-  int cost_window = 10;
-  std::vector<double> costs(cost_window, 0.0);
   bool should_break_out = false;
-
+  RCLCPP_INFO(LOGGER, "Maximum Number of Iterations: %d", parameters_->max_iterations_);
   for (iteration_ = 0; iteration_ < parameters_->max_iterations_; ++iteration_)
   {
-    // Update the collision info by forward kinematics
-    performForwardKinematics();
-
-    // Evaluate collision cost and smoothness cost
-    double c_cost = getCollisionCost();
-    double s_cost = getSmoothnessCost();
-    double cost   = c_cost + s_cost;
-    RCLCPP_INFO(LOGGER, "Collision cost %f, smoothness cost: %f", c_cost, s_cost);
-
-    // Track best solution so far
-    if (iteration_ == 0)
-    {
-      best_group_trajectory_      = group_trajectory_.getTrajectory();
-      best_group_trajectory_cost_ = cost;
-      last_improvement_iteration_ = iteration_;
-    }
-    else if (cost < best_group_trajectory_cost_)
-    {
-      best_group_trajectory_      = group_trajectory_.getTrajectory();
-      best_group_trajectory_cost_ = cost;
-      last_improvement_iteration_ = iteration_;
-    }
-
-    // Compute incremental updates
-    calculateSmoothnessIncrements();
-    calculateCollisionIncrements();
-    calculateTotalIncrements();
-
-    // If not using HMC, just do a gradient update
-    addIncrementsToTrajectory();
-
-    // Respect joint limits
-    handleJointLimits();
-
-    // Copy local trajectory to the full_trajectory_
-    updateFullTrajectory();
-
+    auto [intermediate_c_cost, intermediate_s_cost] = stepOptimization();
+    // Add the current trajectory and cost to intermediate results
+    intermediate_results.emplace_back(group_trajectory_, intermediate_c_cost + intermediate_s_cost);
+ 
+    // The initial trajectory is assumed to be an optimal one - based on the fill method chosen
+    // therefore, if it is a viable trajectory, e.g., collision-free, we may break out from the
+    // optimization rule.
     if (iteration_ % 10 == 0)
     {
       RCLCPP_INFO(LOGGER, "iteration: %d", iteration_);
@@ -466,7 +479,7 @@ bool ChompOptimizer::optimize()
     // If not in filter mode, we break out when collision cost is sufficiently small
     if (!parameters_->filter_mode_)
     {
-      if (c_cost < parameters_->collision_threshold_)
+      if (intermediate_c_cost < parameters_->collision_threshold_)
       {
         num_collision_free_iterations_ = parameters_->max_iterations_after_collision_free_;
         is_collision_free_ = true;
@@ -475,7 +488,7 @@ bool ChompOptimizer::optimize()
       }
       else
       {
-        RCLCPP_INFO(LOGGER, "cCost %f is over threshold %f", c_cost, parameters_->collision_threshold_);
+        RCLCPP_INFO(LOGGER, "The Collision Cost %f is over threshold %f", intermediate_c_cost, parameters_->collision_threshold_);
       }
     }
 
@@ -502,40 +515,16 @@ bool ChompOptimizer::optimize()
     }
   }
 
-  // Final check
-  if (is_collision_free_)
-  {
-    optimization_result = true;
-    RCLCPP_INFO(LOGGER, "Chomp path is collision free");
-  }
-  else
-  {
-    optimization_result = false;
-    RCLCPP_ERROR(LOGGER, "Chomp path is NOT collision free!");
-  }
-
-  // Store best trajectory found in group_trajectory_ -> full_trajectory_
-  group_trajectory_.getTrajectory() = best_group_trajectory_;
-  updateFullTrajectory();
-
-  RCLCPP_INFO(LOGGER, "Terminated after %d iterations, using path from iteration %d",
-              iteration_, last_improvement_iteration_);
-  auto total_time = std::chrono::duration<double>(std::chrono::system_clock::now() - start_time).count();
-  RCLCPP_INFO(LOGGER, "Optimization core finished in %f sec", total_time);
-  if (iteration_ > 0)
-  {
-    RCLCPP_INFO(LOGGER, "Time per iteration %f sec", total_time / (iteration_ * 1.0));
-  }
-
   return optimization_result;
 }
+
+
 
 bool ChompOptimizer::isCurrentTrajectoryMeshToMeshCollisionFree() const
 {
   moveit_msgs::msg::RobotTrajectory traj;
   traj.joint_trajectory.joint_names = joint_names_;
 
-  // Construct a trajectory message from best_group_trajectory_
   for (size_t i = 0; i < group_trajectory_.getNumPoints(); ++i)
   {
     trajectory_msgs::msg::JointTrajectoryPoint point;
@@ -545,12 +534,8 @@ bool ChompOptimizer::isCurrentTrajectoryMeshToMeshCollisionFree() const
     }
     traj.joint_trajectory.points.push_back(point);
   }
-
-  // Convert start_state_ to a RobotStateMsg
   moveit_msgs::msg::RobotState start_state_msg;
   moveit::core::robotStateToRobotStateMsg(start_state_, start_state_msg);
-
-  // Ask the planning scene if this path is valid
   return planning_scene_->isPathValid(start_state_msg, traj, planning_group_);
 }
 

@@ -16,7 +16,7 @@ Displays:
     Class: moveit_rviz_plugin/MotionPlanning
     Enabled: true
     Robot Description: robot_description
-    Planning Scene Topic: /move_group/monitored_planning_scene
+    Planning Scene Topic: /monitored_planning_scene
     ... # Additional planning plugin configuration
   - Name: TF
     Class: rviz_default_plugins/TF

@@ -188,9 +188,11 @@ public:
 
   /**
    * \brief Main entrypoint to run the CHOMP optimization
+   * \param Optional Storage to return the intermediate Trajectories and Associated Cost Values
    * \return true if an optimal collision-free path is found, false otherwise
    */
-  bool optimize();
+  bool optimize(std::vector<std::pair<ChompTrajectory, double>>& intermediate_results);
+
 
   /**
    * \brief Destroy or clean up resources (currently unused)
@@ -477,6 +479,12 @@ private:
    * \param[in] trajectory_point The row (time index) in the trajectory
    */
   void computeJointProperties(int trajectory_point);
+
+  /**
+   * Advance the Optimization One Step
+   * \return pair of  {collision cost, smoothness cost}
+   */
+  std::pair<double, double> stepOptimization();
 
   // ------------------- End Private Data/Methods -------------------
 };
